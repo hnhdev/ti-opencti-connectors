@@ -17,7 +17,7 @@ class ReportHub:
     def __init__(self):
         config_file_path = os.path.dirname(os.path.abspath(__file__)) + "/config.yml"
         config = (
-            yaml.load(open(config_file_path), Loader=yaml.FullLoader)
+            yaml.safe_load(open(config_file_path))
             if os.path.isfile(config_file_path)
             else {}
         )
@@ -53,7 +53,10 @@ class ReportHub:
     @staticmethod
     def get_config(name: str, config, default=None):
         env_name = "RST_REPORT_HUB_{}".format(name.upper())
-        result = get_config_variable(env_name, ["rst_report_hub", name], config)
+        # usually this connector gets its config from variables
+        # but if these are not defined, then it
+        # reads 'rst-report-hub' property in the file config.yml
+        result = get_config_variable(env_name, ["rst-report-hub", name], config)
         return result or default
 
     def _combine_report_and_send(self, stix_bundle, x_opencti_file, report_id):
@@ -62,8 +65,8 @@ class ReportHub:
         stix_bundle_main = []
         for entry in parsed_bundle.get("objects", []):
             stix_bundle_main.append(entry)
-            # attach a pdf
-            if x_opencti_file:
+            # attach PDFs only to the Report object
+            if x_opencti_file and entry.get("type", "") == "report":
                 entry["x_opencti_files"] = [x_opencti_file]
 
         message = "Importing " + report_id.replace("_", " ")
@@ -86,6 +89,10 @@ class ReportHub:
                     self._downloader_config["base_url"] + "/reports",
                     headers=headers,
                     params=params_stix,
+                    timeout=(
+                        self._downloader_config["connection_timeout"],
+                        self._downloader_config["read_timeout"],
+                    ),
                 )
                 response.raise_for_status()
                 stix_report = response.content
@@ -100,6 +107,10 @@ class ReportHub:
                         self._downloader_config["base_url"] + "/reports",
                         headers=headers,
                         params=params_pdf,
+                        timeout=(
+                            self._downloader_config["connection_timeout"],
+                            self._downloader_config["read_timeout"],
+                        ),
                     )
                     response.raise_for_status()
 
@@ -143,6 +154,10 @@ class ReportHub:
                     self._downloader_config["base_url"] + "/reports",
                     headers=headers,
                     params=params,
+                    timeout=(
+                        self._downloader_config["connection_timeout"],
+                        self._downloader_config["read_timeout"],
+                    ),
                 )
                 response.raise_for_status()
 

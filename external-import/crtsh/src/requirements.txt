@@ -1,4 +1,2 @@
-pycti==6.0.10
-requests
-stix2
+pycti==6.2.9
 validators

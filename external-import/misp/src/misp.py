@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import time
+import traceback
 import uuid
 from datetime import datetime
 
@@ -129,8 +130,13 @@ class Misp:
             "MISP_DATETIME_ATTRIBUTE",
             ["misp", "datetime_attribute"],
             config,
-            False,
-            "timestamp",
+            default="timestamp",
+        )
+        self.misp_filter_date_attribute = get_config_variable(
+            "MISP_DATE_FILTER_FIELD",
+            ["misp", "date_filter_field"],
+            config,
+            default="timestamp",
         )
         self.misp_report_description_attribute_filter = parse_filter_config(
             get_config_variable(
@@ -154,8 +160,7 @@ class Misp:
             "MISP_CREATE_OBJECT_OBSERVABLES",
             ["misp", "create_object_observables"],
             config,
-            False,
-            False,
+            default=False,
         )
         self.misp_create_tags_as_labels = get_config_variable(
             "MISP_CREATE_TAGS_AS_LABELS",
@@ -247,7 +252,7 @@ class Misp:
             "MISP_IMPORT_TO_IDS_NO_SCORE",
             ["misp", "import_to_ids_no_score"],
             config,
-            True,
+            isNumber=True,
         )
         self.import_unsupported_observables_as_text = bool(
             get_config_variable(
@@ -268,12 +273,7 @@ class Misp:
             )
         )
         self.misp_interval = get_config_variable(
-            "MISP_INTERVAL", ["misp", "interval"], config, True
-        )
-        self.update_existing_data = get_config_variable(
-            "CONNECTOR_UPDATE_EXISTING_DATA",
-            ["connector", "update_existing_data"],
-            config,
+            "MISP_INTERVAL", ["misp", "interval"], config, isNumber=True
         )
 
         # Initialize MISP
@@ -359,7 +359,7 @@ class Misp:
 
             # Put the date
             next_event_timestamp = last_event_timestamp + 1
-            kwargs[self.misp_datetime_attribute] = next_event_timestamp
+            kwargs[self.misp_filter_date_attribute] = next_event_timestamp
 
             # Complex query date
             if complex_query_tag is not None:
@@ -958,7 +958,6 @@ class Misp:
                     external_references=event_external_references,
                     confidence=self.helper.connect_confidence_level,
                     custom_properties={
-                        "x_opencti_report_status": 2,
                         "x_opencti_files": added_files,
                     },
                     allow_custom=True,
@@ -990,9 +989,7 @@ class Misp:
             bundle = stix2.Bundle(objects=bundle_objects, allow_custom=True).serialize()
             self.helper.log_info("Sending event STIX2 bundle")
 
-            self.helper.send_stix2_bundle(
-                bundle, work_id=work_id, update=self.update_existing_data
-            )
+            self.helper.send_stix2_bundle(bundle, work_id=work_id)
             self.helper.metric.inc("record_send", len(bundle_objects))
         return last_event_timestamp
 
@@ -1873,12 +1870,27 @@ class Misp:
                     tag_value = tag_value_split[0]
                 else:
                     tag_value = tag_value_split[1].replace('"', "")
+                tag_value_split = tag_value.split(":")
+                if len(tag_value_split) == 1:
+                    tag_value = tag_value_split[0]
+                else:
+                    tag_value = tag_value_split[1].replace('"', "")
                 if len(tag_value) > 0:
                     threats = self.helper.api.stix_domain_object.list(
                         types=["Intrusion-Set", "Malware", "Tool", "Attack-Pattern"],
                         filters={
                             "mode": "and",
-                            "filters": [{"key": "name", "values": [tag_value]}],
+                            "filters": [
+                                {
+                                    "key": [
+                                        "name",
+                                        "x_mitre_id",
+                                        "aliases",
+                                        "x_opencti_aliases",
+                                    ],
+                                    "values": [tag_value],
+                                }
+                            ],
                             "filterGroups": [],
                         },
                     )
@@ -1951,10 +1963,17 @@ class Misp:
                 or tag["name"].startswith(
                     "misp-galaxy:mitre-enterprise-attack-intrusion-set"
                 )
+                or tag["name"].startswith("intrusion-set")
             ):
-                tag_value_split = tag["name"].split('="')
+                if "=" in tag["name"]:
+                    tag_value_split = tag["name"].split('="')
+                else:
+                    tag_value_split = tag["name"].split(":")
                 if len(tag_value_split) > 1 and len(tag_value_split[1]) > 0:
-                    tag_value = tag_value_split[1][:-1].strip()
+                    if "=" in tag["name"]:
+                        tag_value = tag_value_split[1][:-1].strip()
+                    else:
+                        tag_value = tag_value_split[1].strip()
                     if " - G" in tag_value:
                         name = tag_value.split(" - G")[0]
                     elif "APT " in tag_value:
@@ -1974,12 +1993,20 @@ class Misp:
                         )
                         added_names.append(name)
             # Get the linked tools
-            if tag["name"].startswith("misp-galaxy:mitre-tool") or tag[
-                "name"
-            ].startswith("misp-galaxy:mitre-enterprise-attack-tool"):
-                tag_value_split = tag["name"].split('="')
+            if (
+                tag["name"].startswith("misp-galaxy:mitre-tool")
+                or tag["name"].startswith("misp-galaxy:mitre-enterprise-attack-tool")
+                or tag["name"].startswith("tool")
+            ):
+                if "=" in tag["name"]:
+                    tag_value_split = tag["name"].split('="')
+                else:
+                    tag_value_split = tag["name"].split(":")
                 if len(tag_value_split) > 1 and len(tag_value_split[1]) > 0:
-                    tag_value = tag_value_split[1][:-1].strip()
+                    if "=" in tag["name"]:
+                        tag_value = tag_value_split[1][:-1].strip()
+                    else:
+                        tag_value = tag_value_split[1].strip()
                     if " - S" in tag_value:
                         name = tag_value.split(" - S")[0]
                     else:
@@ -2004,10 +2031,17 @@ class Misp:
                 or tag["name"].startswith("misp-galaxy:misp-tool")
                 or tag["name"].startswith("misp-galaxy:misp-android")
                 or tag["name"].startswith("misp-galaxy:misp-malpedia")
+                or tag["name"].startswith("malware")
             ):
-                tag_value_split = tag["name"].split('="')
+                if "=" in tag["name"]:
+                    tag_value_split = tag["name"].split('="')
+                else:
+                    tag_value_split = tag["name"].split(":")
                 if len(tag_value_split) > 1 and len(tag_value_split[1]) > 0:
-                    tag_value = tag_value_split[1][:-1].strip()
+                    if "=" in tag["name"]:
+                        tag_value = tag_value_split[1][:-1].strip()
+                    else:
+                        tag_value = tag_value_split[1].strip()
                     if " - S" in tag_value:
                         name = tag_value.split(" - S")[0]
                     else:
@@ -2030,10 +2064,17 @@ class Misp:
                 tag["name"].startswith("misp-galaxy:mitre-attack-pattern")
                 or tag["name"].startswith("misp-galaxy:attack-pattern")
                 or tag["name"].startswith("mitre-attack:attack-pattern")
+                or tag["name"].startswith("mitre:")
             ):
-                tag_value_split = tag["name"].split('="')
+                if "=" in tag["name"]:
+                    tag_value_split = tag["name"].split('="')
+                else:
+                    tag_value_split = tag["name"].split(":")
                 if len(tag_value_split) > 1 and len(tag_value_split[1]) > 0:
-                    tag_value = tag_value_split[1][:-1].strip()
+                    if "=" in tag["name"]:
+                        tag_value = tag_value_split[1][:-1].strip()
+                    else:
+                        tag_value = tag_value_split[1].strip()
                     if " - T" in tag_value:
                         name = tag_value.split(" - T")[0]
                     else:
@@ -2311,6 +2352,10 @@ class Misp:
                 and not tag["name"].startswith("misp-galaxy:region")
                 and not tag["name"].startswith("marking")
                 and not tag["name"].startswith("creator")
+                and not tag["name"].startswith("intrusion-set")
+                and not tag["name"].startswith("malware")
+                and not tag["name"].startswith("tool")
+                and not tag["name"].startswith("mitre")
             ):
                 tag_value = tag["name"]
                 if '="' in tag["name"]:
@@ -2382,5 +2427,9 @@ class Misp:
 
 
 if __name__ == "__main__":
-    mispConnector = Misp()
-    mispConnector.run()
+    try:
+        mispConnector = Misp()
+        mispConnector.run()
+    except Exception:
+        traceback.print_exc()
+        sys.exit(1)

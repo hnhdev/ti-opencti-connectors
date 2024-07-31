@@ -11,7 +11,7 @@ By integrating Comlaude's domain information with OpenCTI, the connector aids in
 
 ### Requirements
 
-- OpenCTI Platform >= 6.0.10
+- OpenCTI Platform >= 6.2.9
 - Username, Password, and API Key for Comlaude
 
 ### Configuration
@@ -23,7 +23,6 @@ By integrating Comlaude's domain information with OpenCTI, the connector aids in
 | `connector_id`                       | `CONNECTOR_ID`                      | Yes          | A valid arbitrary `UUIDv4` that must be unique for this connector.                                                                                         |
 | `connector_name`                     | `CONNECTOR_NAME`                    | Yes          | Option `Template`                                                                                                                                          |
 | `connector_scope`                    | `CONNECTOR_SCOPE`                   | Yes          | Supported scope: Template Scope (MIME Type or Stix Object)                                                                                                 |
-| `connector_confidence_level`         | `CONNECTOR_CONFIDENCE_LEVEL`        | Yes          | The default confidence level for created sightings (a number between 1 and 4).                                                                             |
 | `connector_log_level`                | `CONNECTOR_LOG_LEVEL`               | Yes          | The log level for this connector, could be `debug`, `info`, `warn` or `error` (less verbose).                                                              |
 | `connector_run_and_terminate`        | `CONNECTOR_RUN_AND_TERMINATE`       | Yes          | Terminate container after successful execution.                                                                                                            |
 | `config_update_existing_data`        | `CONFIG_UPDATE_EXISTING_DATA`       | Yes          | whether to updated data in the database.                                                                                                                   |
@@ -34,5 +33,4 @@ By integrating Comlaude's domain information with OpenCTI, the connector aids in
 | `comlaude_group_id`                  | `COMLAUDE_GROUP_ID`                 | Yes          | Group ID for API in Comlaude.                                                                                                                              |
 | `comlaude_start_time`                | `COMLAUDE_START_TIME`               | Yes          | Earliest entry to retrieve (e.g., 1970-01-01T00:00:00Z).                                                                                                   |
 | `comlaude_labels`                    | `COMLAUDE_LABELS`                   | Yes          | Labels to apply to Stix Objects (e.g., comlaude,safelist).                                                                                                 |
-| `comlaude_score`                | `COMLAUDE_SCORE`               | No          | Provide score for Indicator, if not provided default is 0. |
 

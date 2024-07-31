@@ -1,2 +1,1 @@
-pycti==6.0.10
-# requests
+pycti==6.2.9

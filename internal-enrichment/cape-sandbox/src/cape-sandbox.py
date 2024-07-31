@@ -45,7 +45,7 @@ class CapeSandboxConnector:
             "OPENCTI_URL", ["opencti", "url"], config
         )
         self.cape_api_url = get_config_variable(
-            "CAPE_SANDBOX_URL", ["cape_sandbox", "api_url"], config
+            "CAPE_SANDBOX_URL", ["cape_sandbox", "url"], config
         )
         self.token = get_config_variable(
             "CAPE_SANDBOX_TOKEN", ["cape_sandbox", "token"], config
@@ -104,16 +104,25 @@ class CapeSandboxConnector:
 
         final_observable = self.helper.api.stix_cyber_observable.update_field(
             id=final_observable["id"],
-            input={"key": "hashes.MD5", "value": target["md5"]},
-        )
-        final_observable = self.helper.api.stix_cyber_observable.update_field(
-            id=final_observable["id"],
-            input={"key": "hashes.SHA-1", "value": target["sha1"]},
+            input={
+                "key": "hashes",
+                "object_path": "/hashes/MD5",
+                "value": target["md5"],
+            },
         )
         final_observable = self.helper.api.stix_cyber_observable.update_field(
             id=final_observable["id"],
             input={
-                "key": "hashes.SHA-256",
+                "key": "hashes",
+                "object_path": "/hashes/SHA-1",
+                "value": target["sha1"],
+            },
+        )
+        final_observable = self.helper.api.stix_cyber_observable.update_field(
+            id=final_observable["id"],
+            input={
+                "key": "hashes",
+                "object_path": "/hashes/SHA-256",
                 "value": target["sha256"],
             },
         )

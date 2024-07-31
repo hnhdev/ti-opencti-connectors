@@ -380,12 +380,17 @@ class ThreatActor(RFStixEntity):
 
     def create_stix_objects(self):
         """Creates STIX objects from object attributes"""
-        self.stix_obj = stix2.ThreatActor(
-            id=pycti.ThreatActor.generate_id(self.name),
-            name=self.name,
-            created_by_ref=self.author.id,
-            object_marking_refs=self.tlp,
-        )
+        ta_args = {
+            "id": pycti.ThreatActor.generate_id(self.name),
+            "name": self.name,
+            "created_by_ref": self.author.id,
+            "object_marking_refs": self.tlp,
+        }
+
+        if self.type == "Person":
+            ta_args["resource_level"] = "individual"
+
+        self.stix_obj = stix2.ThreatActor(**ta_args)
 
     def create_id_class(self):
         """Creates a STIX2 identity class"""
@@ -897,6 +902,7 @@ class StixNote:
         "Actor Profile": "Threat-Actor",
         "Analyst On-Demand Report": "Threat-Report",
         "Cyber Threat Analysis": "Threat-Report",
+        "Executive Insights": "Threat-Report",
         "Flash Report": "Threat-Report",
         "Geopolitical Flash Event": "Threat-Report",
         "Geopolitical Intelligence Summary": "Threat-Report",

@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  slack: circleci/slack@4.13.2
+  slack: circleci/slack@4.13.3
   ms-teams: cloudradar-monitoring/ms-teams@0.0.1
 jobs:
   ensure_formatting:
@@ -326,6 +326,14 @@ jobs:
           name: Build Docker image opencti/connector-malcore
           command: docker build -t opencti/connector-malcore:latest . && docker tag opencti/connector-malcore:latest opencti/connector-malcore:${CIRCLE_TAG}
       - run:
+          working_directory: ~/opencti/external-import/infoblox
+          name: Build Docker image opencti/connector-infoblox
+          command: docker build -t opencti/connector-infoblox:latest . && docker tag opencti/connector-infoblox:latest opencti/connector-infoblox:${CIRCLE_TAG}
+      - run:
+          working_directory: ~/opencti/external-import/cisco-sma
+          name: Build Docker image opencti/connector-cisco-sma
+          command: docker build -t opencti/connector-cisco-sma:latest . && docker tag opencti/connector-cisco-sma:latest opencti/connector-cisco-sma:${CIRCLE_TAG}
+      - run:
           name: Publish Docker Image to Docker Hub
           command: |
             echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
@@ -459,6 +467,10 @@ jobs:
             docker push opencti/connector-mitre-atlas:${CIRCLE_TAG}
             docker push opencti/connector-malcore:latest
             docker push opencti/connector-malcore:${CIRCLE_TAG}
+            docker push opencti/connector-infoblox:latest
+            docker push opencti/connector-infoblox:${CIRCLE_TAG}
+            docker push opencti/connector-cisco-sma:latest
+            docker push opencti/connector-cisco-sma:${CIRCLE_TAG}
       - slack/notify:
           event: fail
           template: basic_fail_1
@@ -710,6 +722,26 @@ jobs:
           name: Build Docker image opencti/connector-rst-noise-control
           command: docker build -t opencti/connector-rst-noise-control:latest . && docker tag opencti/connector-rst-noise-control:latest opencti/connector-rst-noise-control:${CIRCLE_TAG}
       - run:
+          working_directory: ~/opencti/external-import/red-flag-domains
+          name: Build Docker image opencti/connector-red-flag-domains
+          command: docker build -t opencti/connector-red-flag-domains:latest . && docker tag opencti/connector-red-flag-domains:latest opencti/connector-red-flag-domains:${CIRCLE_TAG}
+      - run:
+          working_directory: ~/opencti/external-import/shadowserver
+          name: Build Docker image opencti/connector-shadowserver
+          command: docker build -t opencti/connector-shadowserver:latest . && docker tag opencti/connector-shadowserver:latest opencti/connector-shadowserver:${CIRCLE_TAG}
+      - run:
+          working_directory: ~/opencti/internal-enrichment/reversinglabs-malware-presence
+          name: Build Docker image opencti/connector-reversinglabs-malware-presence
+          command: docker build -t opencti/connector-reversinglabs-malware-presence:latest . && docker tag opencti/connector-reversinglabs-malware-presence:latest opencti/connector-reversinglabs-malware-presence:${CIRCLE_TAG}
+      - run:
+          working_directory: ~/opencti/stream/jira
+          name: Build Docker image opencti/connector-jira
+          command: docker build -t opencti/connector-jira:latest . && docker tag opencti/connector-jira:latest opencti/connector-jira:${CIRCLE_TAG}
+      - run:
+          working_directory: ~/opencti/stream/webhook
+          name: Build Docker image opencti/connector-webhook
+          command: docker build -t opencti/connector-webhook:latest . && docker tag opencti/connector-webhook:latest opencti/connector-webhook:${CIRCLE_TAG}
+      - run:
           name: Publish Docker Image to Docker Hub
           command: |
             echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
@@ -831,6 +863,16 @@ jobs:
             docker push opencti/connector-greynoise-feed:${CIRCLE_TAG}
             docker push opencti/connector-rst-noise-control:latest
             docker push opencti/connector-rst-noise-control:${CIRCLE_TAG}
+            docker push opencti/connector-red-flag-domains:latest
+            docker push opencti/connector-red-flag-domains:${CIRCLE_TAG}
+            docker push opencti/connector-shadowserver:latest
+            docker push opencti/connector-shadowserver:${CIRCLE_TAG}
+            docker push opencti/connector-reversinglabs-malware-presence:latest
+            docker push opencti/connector-reversinglabs-malware-presence:${CIRCLE_TAG}
+            docker push opencti/connector-jira:latest
+            docker push opencti/connector-jira:${CIRCLE_TAG}
+            docker push opencti/connector-webhook:latest
+            docker push opencti/connector-webhook:${CIRCLE_TAG}
       - slack/notify:
           event: fail
           template: basic_fail_1
@@ -893,6 +935,10 @@ jobs:
       - checkout
       - setup_remote_docker
       - run: sudo apt-get update -qq && sudo apt install curl gettext-base
+      - run:
+          working_directory: ~/opencti
+          name: Replace pycti requirement of stable version with latest master branch code
+          command: find . -name requirements.txt -exec sed 's|^pycti==.*$|pycti @ git+https://github.com/OpenCTI-Platform/client-python@master|' -i {} \;
       - run:
           working_directory: ~/opencti/internal-import-file/import-file-stix
           name: Build Docker image opencti/connector-import-file-stix
@@ -1146,6 +1192,14 @@ jobs:
           name: Build Docker image opencti/connector-malcore
           command: docker build -t opencti/connector-malcore:rolling .
       - run:
+          working_directory: ~/opencti/external-import/infoblox
+          name: Build Docker image opencti/connector-infoblox
+          command: docker build -t opencti/connector-infoblox:rolling .
+      - run:
+          working_directory: ~/opencti/external-import/cisco-sma
+          name: Build Docker image opencti/connector-cisco-sma
+          command: docker build -t opencti/connector-cisco-sma:rolling .
+      - run:
           name: Publish Docker Image to Docker Hub
           command: |
             echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
@@ -1212,6 +1266,8 @@ jobs:
             docker push opencti/connector-urlscan-enrichment:rolling
             docker push opencti/connector-mitre-atlas:rolling
             docker push opencti/connector-malcore:rolling
+            docker push opencti/connector-infoblox:rolling
+            docker push opencti/connector-cisco-sma:rolling
       - slack/notify:
           event: fail
           template: basic_fail_1
@@ -1226,6 +1282,10 @@ jobs:
       - checkout
       - setup_remote_docker
       - run: sudo apt-get update -qq && sudo apt install curl gettext-base
+      - run:
+          working_directory: ~/opencti
+          name: Replace pycti requirement of stable version with latest master branch code
+          command: find . -name requirements.txt -exec sed 's|^pycti==.*$|pycti @ git+https://github.com/OpenCTI-Platform/client-python@master|' -i {} \;
       - run:
           working_directory: ~/opencti/external-import/sekoia
           name: Build Docker image opencti/connector-sekoia
@@ -1467,6 +1527,26 @@ jobs:
           name: Build Docker image opencti/connector-rst-noise-control
           command: docker build -t opencti/connector-rst-noise-control:rolling .
       - run:
+          working_directory: ~/opencti/external-import/red-flag-domains
+          name: Build Docker image opencti/connector-red-flag-domains
+          command: docker build -t opencti/connector-red-flag-domains:rolling .
+      - run:
+          working_directory: ~/opencti/external-import/shadowserver
+          name: Build Docker image opencti/connector-shadowserver
+          command: docker build -t opencti/connector-shadowserver:rolling .
+      - run:
+          working_directory: ~/opencti/internal-enrichment/reversinglabs-malware-presence
+          name: Build Docker image opencti/connector-reversinglabs-malware-presence
+          command: docker build -t opencti/connector-reversinglabs-malware-presence:rolling .
+      - run:
+          working_directory: ~/opencti/stream/jira
+          name: Build Docker image opencti/connector-jira
+          command: docker build -t opencti/connector-jira:rolling .
+      - run:
+          working_directory: ~/opencti/stream/webhook
+          name: Build Docker image opencti/connector-webhook
+          command: docker build -t opencti/connector-webhook:rolling .
+      - run:
           name: Publish Docker Image to Docker Hub
           command: |
             echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
@@ -1530,6 +1610,11 @@ jobs:
             docker push opencti/connector-anyrun-task:rolling
             docker push opencti/connector-greynoise-feed:rolling
             docker push opencti/connector-rst-noise-control:rolling
+            docker push opencti/connector-red-flag-domains:rolling
+            docker push opencti/connector-shadowserver:rolling
+            docker push opencti/connector-reversinglabs-malware-presence:rolling
+            docker push opencti/connector-jira:rolling
+            docker push opencti/connector-webhook:rolling
       - slack/notify:
           event: fail
           template: basic_fail_1
@@ -1544,6 +1629,10 @@ jobs:
       - checkout
       - setup_remote_docker
       - run: sudo apt-get update -qq && sudo apt install curl gettext-base
+      - run:
+          working_directory: ~/opencti
+          name: Replace pycti requirement of stable version with latest master branch code
+          command: find . -name requirements.txt -exec sed 's|^pycti==.*$|pycti @ git+https://github.com/OpenCTI-Platform/client-python@master|' -i {} \;
       - run:
           working_directory: ~/opencti/internal-import-file/import-file-stix
           name: Build Docker image opencti/connector-import-file-stix

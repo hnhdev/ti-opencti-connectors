@@ -1,5 +1,6 @@
 import base64
 import itertools
+import re
 
 import stix2
 from pycti import Note
@@ -10,56 +11,48 @@ from .common import create_stix_relationship
 
 def process(connector, report):
     report_id = report.get("report_id", report.get("reportId", None))
-
-    report_type = report.get("report_type", report.get("reportType", None))
-    report_title = report.get("title", report.get("reportTitle", None))
-
-    if report_type not in connector.mandiant_report_types:
-        connector.helper.connector_logger.debug(
-            "Ignoring report",
+    try:
+        report_type = report.get("report_type", report.get("reportType", None))
+        report_title = report.get("title", report.get("reportTitle", None))
+        if report_type not in connector.mandiant_report_types:
+            connector.helper.connector_logger.debug(
+                "Ignoring report",
+                {
+                    "report_id": report_id,
+                    "report_type": report_type,
+                    "report_title": report_title,
+                },
+            )
+            return
+        connector.helper.connector_logger.info(
+            "Processing report",
             {
                 "report_id": report_id,
                 "report_type": report_type,
                 "report_title": report_title,
             },
         )
-        return
-
-    connector.helper.connector_logger.info(
-        "Processing report",
-        {
-            "report_id": report_id,
-            "report_type": report_type,
-            "report_title": report_title,
-        },
-    )
-
-    report_details = connector.api.report(report_id, "json")
-    report_bundle = connector.api.report(report_id, mode="stix")
-    report_pdf = connector.api.report(report_id, mode="pdf")
-
-    bundle_objects = report_bundle["objects"]
-    report_bundle["objects"] = list(
-        filter(lambda item: not item["id"].startswith("x-"), bundle_objects)
-    )
-
-    report = Report(
-        bundle=report_bundle,
-        details=report_details,
-        pdf=report_pdf,
-        connector=connector,
-        report_type=report_type,
-        report_link=report["report_link"],
-    )
-
-    try:
+        report_details = connector.api.report(report_id, "json")
+        report_bundle = connector.api.report(report_id, mode="stix")
+        report_pdf = connector.api.report(report_id, mode="pdf")
+        bundle_objects = report_bundle["objects"]
+        report_bundle["objects"] = list(
+            filter(lambda item: not item["id"].startswith("x-"), bundle_objects)
+        )
+        report = Report(
+            bundle=report_bundle,
+            details=report_details,
+            pdf=report_pdf,
+            connector=connector,
+            report_type=report_type,
+            report_link=report["report_link"],
+        )
         bundle = report.generate()
     except Exception:
         connector.helper.connector_logger.error(
             "Could not process Report", {"report_id": report_id}
         )
         return None
-
     return bundle
 
 
@@ -169,6 +162,11 @@ class Report:
             if risk_rating:
                 vulnerability["x_opencti_base_severity"] = risk_rating
 
+    @staticmethod
+    def _parse_description(description):
+        media = description
+        return re.sub("<[^<]+?>", "", media)
+
     def update_report(self):
         report = utils.retrieve(self.bundle, "type", "report")
         report["confidence"] = self.confidence
@@ -177,14 +175,36 @@ class Report:
         report["object_refs"] = list(
             filter(lambda ref: not ref.startswith("x-"), report["object_refs"])
         )
-        mandiant_ref = [{"source_name": "Mandiant", "url": self.report_link}]
+
+        if "fromMedia" in self.details and self.details["fromMedia"] is not None:
+            report["description"] = self._parse_description(self.details["fromMedia"])
+
+        # Retrieve the story link and add it into external reference
+        story_link_ref = None
+        if (
+            "storyLink" in self.details
+            and "outlet" in self.details
+            and self.details["storyLink"] is not None
+            and self.details["outlet"] is not None
+        ):
+            story_link_ref = {
+                "source_name": self.details["outlet"],
+                "url": self.details["storyLink"],
+            }
+
+        mandiant_refs = [{"source_name": "Mandiant", "url": self.report_link}]
+        if story_link_ref is not None:
+            mandiant_refs.append(story_link_ref)
+
         if (
             "external_references" in report
             and report["external_references"] is not None
         ):
-            report["external_references"] = report["external_references"] + mandiant_ref
+            report["external_references"] = (
+                report["external_references"] + mandiant_refs
+            )
         else:
-            report["external_references"] = mandiant_ref
+            report["external_references"] = mandiant_refs
 
     def create_note(self):
         # Report Analysis Note
@@ -252,6 +272,13 @@ class Report:
         for key, values in data.items():
             text += f"\n\n### {key}\n"
             text += "* " + "\n* ".join(set(values))
+
+        if (
+            "isightComment" in self.details
+            and self.details["isightComment"] is not None
+        ):
+            content = utils.cleanhtml(self.details["isightComment"])
+            text += f"\n**Analyst Comment** \n{content}"
 
         if text == "":
             return
@@ -358,7 +385,7 @@ class Report:
 
         definitions = []
 
-        if len(intrusion_sets) == 1:
+        if len(intrusion_sets) > 0:
             definitions += [
                 {
                     "type": "originates-from",
@@ -402,7 +429,7 @@ class Report:
                 },
             ]
 
-        if len(malwares) == 1:
+        if len(malwares) > 0:
             definitions += [
                 {
                     "type": "originates-from",
@@ -439,7 +466,7 @@ class Report:
                 },
             ]
 
-        if len(vulnerabilities) == 1:
+        if len(vulnerabilities) > 0:
             definitions += [
                 {
                     "type": "has",
@@ -481,48 +508,3 @@ class Report:
         report = utils.retrieve(self.bundle, "type", "report")
         report["object_refs"] += relationships_ids
         self.bundle["objects"] += relationships
-
-
-# class NewsAnalysisReport(Report):
-#     pass
-
-#     def _process(self, item):
-#         note = create_isight_note(report_details, identity, confidence)
-#         if note:
-#             item["object_refs"].append(note.id)
-
-#         if "description" not in item:
-#             item["description"] = parse_description(report_details)
-
-#         if "external_references" not in item:
-#             item["external_references"] = list()
-
-#         outlet = report_details.get("outlet")
-#         storyLink = report_details.get("storyLink")
-
-#         if outlet and storyLink:
-#             item["external_references"].append({
-#                 "source_name": outlet,
-#                 "url": storyLink,
-#             })
-
-#     def create_isight_note(report_details, identity, confidence):
-#         content = utils.cleanhtml(report_details.get("isightComment"))
-
-#         if not content:
-#             return None
-
-#         return stix2.Note(
-#             id=Note.generate_id(),
-#             abstract="Analysis",
-#             created_by_ref=identity,
-#             content=content,
-#             note_types=["analysis"],
-#             confidence=confidence,
-#             object_refs=[item.get("id")],
-#             object_marking_refs=item["object_marking_refs"],
-#         )
-
-#     def parse_description(report_details):
-#         media = report_details.get("fromMedia", "")
-#         return re.sub("<[^<]+?>", "", media)
